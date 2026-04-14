@@ -1,146 +1,152 @@
 # Codebase Notes
 
+_Last updated: April 2026 — Christie Yiu, Sio Hang Yiu, Matiyas Dawit_
+
+---
+
 ## Purpose
 
-This workspace extracts text from the scanned PDF of The Cave of Time, builds a story graph from the extracted pages, writes all possible bounded story paths, and renders the graph as SVG.
+This project has two parts:
 
-## Canonical Source Of Truth
+1. **Data pipeline** (original work by Yusuf Pisan) — extracts text from the scanned PDF of *The Cave of Time*, builds a story graph, and writes all possible bounded story paths.
+2. **Web app** (added by this fork) — an interactive React app for reading the story and visualizing the story graph.
 
-The canonical extracted page set is:
-- output/cot-pages-ocr-v2
+---
 
-Do not use the older cot-pages extraction workflow. It had bad OCR and was removed.
+## Read This First
+
+- The canonical extracted page set is `output/cot-pages-ocr-v2/`
+- Do NOT use the older `cot-pages` extraction. It had bad OCR and was deleted.
+- The web app lives in `web/` and is deployed to GitHub Pages.
+- Story data for the web app is pre-processed into `web/src/story-data.json`
+
+---
 
 ## Important PDF Mapping
 
-The scan is a two-page spread layout.
+The scan is a two-page spread layout:
+- PDF page 8 → story page 2 (left) and story page 3 (right)
+- PDF page 9 → story page 4 (left) and story page 5 (right)
 
-Story start mapping:
-- PDF page 8 contains story page 2 on the left and story page 3 on the right
-- PDF page 9 contains story page 4 on the left and story page 5 on the right
-
-The story begins on story page 2 with:
-- "You've hiked through Snake Canyon once before ..."
+Story starts on page 2: *"You've hiked through Snake Canyon once before..."*
 
 Do not confuse story page numbers with PDF page numbers.
 
-## Current Scripts
+---
 
-Canonical scripts in scripts/:
-- reextract_cot_ocr_split.py
-- build_story_graph.py
-- write_all_stories.py
-- render_story_graph_svg.py
+## Data Pipeline Scripts (`scripts/`)
 
-Superseded scripts were deleted:
-- extract_cot.py
-- reextract_cot_spreads.py
+| Script | What it does |
+|--------|-------------|
+| `reextract_cot_ocr_split.py` | Re-extracts story pages from PDF using OCR on left/right halves of each spread |
+| `build_story_graph.py` | Builds Mermaid graph from OCR pages |
+| `write_all_stories.py` | Writes all bounded story paths (max 20 decisions, no loops) |
+| `render_story_graph_svg.py` | Renders the Mermaid graph to SVG |
+| `generate_story_json.py` | *(new)* Exports story data to `web/src/story-data.json` for the web app |
 
-## What Each Script Does
+Superseded scripts (deleted): `extract_cot.py`, `reextract_cot_spreads.py`
 
-### reextract_cot_ocr_split.py
+---
 
-Re-extracts story pages from the PDF using OCR on left/right halves of each PDF spread page.
+## Web App (`web/`)
 
-Typical command:
+### Tech Stack
+- React 19 + Vite 8
+- Cytoscape.js (story graph)
+- GitHub Pages (deployment via `gh-pages` package)
 
-```bash
-python3 scripts/reextract_cot_ocr_split.py \
-  --pdf samples/the-cave-of-time.pdf \
-  --pdf-start-page 8 \
-  --pdf-end-page 66 \
-  --story-start-page 2 \
-  --output-dir output/cot-pages-ocr-v2
+### Key Files
+
+```
+web/
+├── src/
+│   ├── story-data.json         # Pre-processed story: all pages, choices, graph edges
+│   ├── App.jsx                 # Root component, layout (reader + graph panels)
+│   ├── App.css                 # All styles (dark theme)
+│   ├── hooks/
+│   │   └── useStory.js         # State: currentPage, history, goToPage, goBack, restart
+│   └── components/
+│       ├── StoryReader.jsx     # Displays page text, choices, breadcrumb, ending screen
+│       └── StoryGraph.jsx      # Cytoscape interactive graph, highlights current page
+├── vite.config.js              # base: '/choose-your-own-adventure/' for GitHub Pages
+└── package.json                # deploy script: npm run deploy → gh-pages -d dist
 ```
 
-### build_story_graph.py
+### story-data.json Format
 
-Builds Mermaid graph output from the corrected OCR page files.
-
-Typical command:
-
-```bash
-python3 scripts/build_story_graph.py \
-  --pages-dir output/cot-pages-ocr-v2 \
-  --output output/cot-story-graph.mmd
+```json
+{
+  "startPage": 2,
+  "pages": {
+    "2": {
+      "id": 2,
+      "text": "You've hiked through Snake Canyon...",
+      "choices": [
+        { "text": "If you decide to start back home, turn to page 4", "page": 4 },
+        { "text": "If you decide to wait, turn to page 5", "page": 5 }
+      ],
+      "isTerminal": false,
+      "isContinuation": false
+    }
+  }
+}
 ```
 
-Notes:
-- Reads explicit "turn to page X" choices from page text.
-- Adds sequential continuation edges for pages that continue onto the next numbered page before any explicit choice appears.
+- `isTerminal: true` — page has no choices (story ending), shown as red node
+- `isContinuation: true` — page text flows into next sequential page (OCR split artifact), shown as purple node
 
-### write_all_stories.py
+### Node Colors in Graph
+- 🟢 Green — start page (page 2)
+- ⚫ Gray — normal pages
+- 🔴 Red — terminal/ending pages (52 total)
+- 🟣 Purple — continuation pages (text splits across PDF spread)
+- 🟡 Yellow — your current page
 
-Writes all possible bounded stories from the graph.
+---
 
-Typical command:
-
-```bash
-python3 scripts/write_all_stories.py \
-  --graph output/cot-story-graph.mmd \
-  --pages-dir output/cot-pages-ocr-v2 \
-  --start-page 2 \
-  --max-decisions 20 \
-  --output-dir output/cot-stories
-```
-
-Important behavior:
-- Starts from story page 2
-- Stops on cycles
-- Stops if decision points exceed 20
-- Clears old story-*.txt files in the target output directory before writing new ones
-
-### render_story_graph_svg.py
-
-Renders the Mermaid graph to SVG without external layout tools.
-
-Typical command:
-
-```bash
-python3 scripts/render_story_graph_svg.py \
-  --graph output/cot-story-graph.mmd \
-  --output output/cot-story-graph.svg
-```
-
-Current visual behavior:
-- Uses a layered Sugiyama-style layout with iterative barycenter ordering
-- Colors terminal pages differently
-- Highlights the main trunk from page 2
-
-## Current Canonical Outputs
+## Canonical Outputs
 
 Keep these:
-- output/cot-pages-ocr-v2
-- output/cot-story-graph.mmd
-- output/cot-story-graph.svg
-- output/cot-stories
+- `output/cot-pages-ocr-v2/` — 111 story page text files
+- `output/cot-story-graph.mmd` — Mermaid graph
+- `output/cot-story-graph.svg` — Visual SVG graph
+- `output/cot-stories/` — 45 pre-written story paths
+- `web/src/story-data.json` — Processed data for web app
 
-These older directories were deleted because they were exploratory or obsolete:
-- output/cot-pages
-- output/cot-pages-reextract
-- output/cot-stories-from-page-02
-- output/cot-stories-start10
-- output/tmp
+Deleted (obsolete):
+- `output/cot-pages/`
+- `output/cot-pages-reextract/`
+- `output/cot-stories-from-page-02/`
+- `output/cot-stories-start10/`
+- `output/tmp/`
 
-## Current Known State
+---
 
-At the end of this session:
-- The corrected OCR v2 extraction produced story pages in output/cot-pages-ocr-v2
-- The graph was rebuilt from OCR v2 pages and saved to output/cot-story-graph.mmd
-- The bounded story writer generated 45 stories into output/cot-stories
-- The graph SVG was rendered to output/cot-story-graph.svg
+## Deployment
 
-## Caveats
+The web app deploys to GitHub Pages:
 
-OCR is improved but not perfect.
-- Some pages still have minor OCR noise
-- Page continuations across spreads are important; graph construction relies on sequential edges when no explicit choice appears
-- Story page numbers, not PDF page numbers, control graph edges and story traversal
+```bash
+cd web
+npm run deploy
+```
+
+Live URL: `https://Christiewmy1.github.io/choose-your-own-adventure/`
+
+---
+
+## Known Caveats
+
+- OCR is improved but not perfect — some pages have minor noise (e.g. "tum" for "turn", stray characters)
+- The JSON parser handles the "tum/turn" OCR variant
+- Pages 2 and 3 are a continuation pair (page 2 text is cut off mid-sentence, flows into page 3)
+- 13 pages are marked as continuations for the same reason
 
 ## Next-Time Guidance
 
 When resuming work:
 1. Read this file first.
-2. Treat output/cot-pages-ocr-v2 as the current source text.
-3. If extraction quality needs improvement, update reextract_cot_ocr_split.py rather than rebuilding older workflows.
-4. If graph or story outputs need regeneration, rerun build_story_graph.py, write_all_stories.py, and render_story_graph_svg.py in that order.
+2. `output/cot-pages-ocr-v2/` is the source of truth for story text.
+3. Web app is in `web/` — run `npm install && npm run dev` to start locally.
+4. If story data needs regeneration, run `generate_story_json.py` then rebuild the web app.
+5. To deploy: `cd web && npm run deploy`
