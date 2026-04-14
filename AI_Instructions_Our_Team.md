@@ -67,3 +67,7 @@ There are still grammer issues check all of the pages and fix any grammar issues
 ## 3:16
 
 ok write the  Codebase.md explaining the project architecture and approach taken and if you can extend and deploy your project on a public website, if not tell me how to 
+
+## 4:01 
+
+ok make the project deployabel when I deploy it to vercel, it had the 404 error, could you fix this so that when vercel deploys the project, the project would successful work
