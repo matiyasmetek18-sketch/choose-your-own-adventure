@@ -44,3 +44,7 @@ ok yeah implement the code fully for this
 ## 2:04
 
 yeah polish the UI and let us test it I want to see it
+
+## 2:24
+
+the story map looks blurry, could you fix that. Also could you make it so that under the heading of "Story pieces" It would have its own scroller so that I when I scroll that piece tab would be the only one that is scrolling and also do the same thing for the "Checks". And make sure the grammar is correct. I found trailing "2" and "4" and "|" and incorrect wording that doesnot make senes why they are there, especially since it is not there in the book (i think it is formatting issues)  
